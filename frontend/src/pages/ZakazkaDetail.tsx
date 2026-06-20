@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import {
-  ArrowLeft, CheckCircle2, MapPin, Phone, User, Package,
+  ArrowLeft, CheckCircle2, MapPin, Phone, Mail, User, Package,
   Euro, Calendar, FileText, Wrench, Edit2, Loader2, X, Save,
   ClipboardList, Plus, Trash2, Download, CheckSquare, Square,
   AlertTriangle, Ruler, FolderOpen, ChevronDown,
@@ -107,7 +107,7 @@ interface Reklamacia {
 }
 
 type EditForm = {
-  zakaznik_nazov: string; adresa_montaze: string; kontakt: string; obchodnik: string; stav: string
+  zakaznik_nazov: string; adresa_montaze: string; kontakt: string; email: string; obchodnik: string; stav: string
   popis_systemu: string; typ_prac: string; rozsah_vyrobkov: string; pocet_napilkov: string
   objem_spolu: string; zalona: string; doplatok: string; termin_zod: string
   poznamka: string; cislo_vyrobnej_davky: string; cislo_obj_dodavatela: string
@@ -122,7 +122,7 @@ function zakazkaToForm(z: Zakazka): EditForm {
   const d = (k: string) => (r[k] as string) ?? ''
   return {
     zakaznik_nazov: z.zakaznik_nazov ?? '', adresa_montaze: z.adresa_montaze ?? '',
-    kontakt: z.kontakt ?? '', obchodnik: z.obchodnik ?? '', stav: z.stav,
+    kontakt: z.kontakt ?? '', email: z.email ?? '', obchodnik: z.obchodnik ?? '', stav: z.stav,
     popis_systemu: z.popis_systemu ?? '', typ_prac: z.typ_prac ?? '',
     rozsah_vyrobkov: z.rozsah_vyrobkov ?? '', pocet_napilkov: z.pocet_napilkov?.toString() ?? '',
     objem_spolu: z.objem_spolu?.toString() ?? '', zalona: z.zalona?.toString() ?? '',
@@ -249,7 +249,7 @@ export default function ZakazkaDetail() {
     const num = (v: string) => v ? parseFloat(v.replace(',', '.')) : null
     const payload: Record<string, unknown> = {
       zakaznik_nazov: n(editForm.zakaznik_nazov), adresa_montaze: n(editForm.adresa_montaze),
-      kontakt: n(editForm.kontakt), obchodnik: n(editForm.obchodnik), stav: editForm.stav,
+      kontakt: n(editForm.kontakt), email: n(editForm.email), obchodnik: n(editForm.obchodnik), stav: editForm.stav,
       popis_systemu: n(editForm.popis_systemu), typ_prac: n(editForm.typ_prac),
       rozsah_vyrobkov: n(editForm.rozsah_vyrobkov),
       pocet_napilkov: editForm.pocet_napilkov ? parseInt(editForm.pocet_napilkov) : null,
@@ -497,6 +497,7 @@ export default function ZakazkaDetail() {
               <InfoRow label="Meno / Firma" value={zakazka.zakaznik_nazov} />
               <InfoRow label="Adresa montáže" value={zakazka.adresa_montaze} icon={MapPin} />
               <InfoRow label="Kontakt" value={zakazka.kontakt} icon={Phone} />
+              <InfoRow label="E-mail" value={zakazka.email} icon={Mail} />
               <InfoRow label="Obchodník" value={zakazka.obchodnik} icon={User} />
             </div>
             <div className="bg-white rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.08)] p-5">
@@ -840,9 +841,10 @@ export default function ZakazkaDetail() {
                   </select>
                 </Field>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <Field label="Adresa montáže"><input value={editForm.adresa_montaze} onChange={ef('adresa_montaze')} className={inputCls} /></Field>
                 <Field label="Kontakt"><input value={editForm.kontakt} onChange={ef('kontakt')} className={inputCls} /></Field>
+                <Field label="E-mail"><input value={editForm.email} onChange={ef('email')} type="email" placeholder="zakaznik@email.sk" className={inputCls} /></Field>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <Field label="Obchodník"><input value={editForm.obchodnik} onChange={ef('obchodnik')} className={inputCls} /></Field>

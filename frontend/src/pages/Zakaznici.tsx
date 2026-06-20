@@ -115,6 +115,12 @@ export default function Zakaznici() {
     if (editTarget) {
       const { error: e } = await supabase.from('zakaznici').update(payload).eq('id', editTarget.id)
       if (e) { setError(e.message); setSaving(false); return }
+      // Synchronizuj kontaktné údaje na všetky zákazky tohto zákazníka
+      await supabase.from('zakazky').update({
+        zakaznik_nazov: payload.nazov,
+        kontakt: payload.kontakt,
+        email: payload.email,
+      }).eq('zakaznik_id', editTarget.id)
       if (selected?.id === editTarget.id) setSelected({ ...editTarget, ...payload })
     } else {
       const { error: e } = await supabase.from('zakaznici').insert(payload)

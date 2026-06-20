@@ -6,6 +6,7 @@ export interface Zakazka {
   zakaznik_nazov: string
   adresa_montaze?: string | null
   kontakt?: string | null
+  email?: string | null
   obchodnik?: string | null
   stav: StavZakazky
   rozsah_vyrobkov?: string | null
