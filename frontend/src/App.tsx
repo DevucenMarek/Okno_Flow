@@ -1,5 +1,8 @@
 import { Routes, Route } from 'react-router-dom'
+import { AuthProvider } from '@/context/AuthContext'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import Layout from '@/components/Layout'
+import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import Zakaznici from '@/pages/Zakaznici'
 import Ponuky from '@/pages/Ponuky'
@@ -15,21 +18,31 @@ import Nastavenia from '@/pages/Nastavenia'
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Layout />}>
-        <Route index element={<Dashboard />} />
-        <Route path="zakaznici" element={<Zakaznici />} />
-        <Route path="ponuky" element={<Ponuky />} />
-        <Route path="zameranie" element={<Zameranie />} />
-        <Route path="zakazky" element={<Zakazky />} />
-        <Route path="zakazky/:id" element={<ZakazkaDetail />} />
-        <Route path="montaze" element={<Montaze />} />
-        <Route path="protokoly" element={<Protokoly />} />
-        <Route path="faktury" element={<Faktury />} />
-        <Route path="servis" element={<Servis />} />
-        <Route path="sklad" element={<Sklad />} />
-        <Route path="nastavenia" element={<Nastavenia />} />
-      </Route>
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="zakaznici" element={<Zakaznici />} />
+          <Route path="ponuky" element={<Ponuky />} />
+          <Route path="zameranie" element={<Zameranie />} />
+          <Route path="zakazky" element={<Zakazky />} />
+          <Route path="zakazky/:id" element={<ZakazkaDetail />} />
+          <Route path="montaze" element={<Montaze />} />
+          <Route path="protokoly" element={<Protokoly />} />
+          <Route path="faktury" element={<Faktury />} />
+          <Route path="servis" element={<Servis />} />
+          <Route path="sklad" element={<Sklad />} />
+          <Route path="nastavenia" element={<Nastavenia />} />
+        </Route>
+      </Routes>
+    </AuthProvider>
   )
 }
