@@ -158,8 +158,16 @@ interface ProtokolData {
   datum?: string | null
   montaznik?: string | null
   poznamka?: string | null
-  klaes_rtf_url?: string | null
   stav?: string | null
+}
+
+interface ZakazkaDoc {
+  id: string
+  nazov: string
+  url: string
+  storage_path: string
+  typ: string
+  created_at: string
 }
 
 interface ServisItem {
@@ -273,12 +281,13 @@ export default function ZakazkaDetail() {
   const [novaNedorobka, setNovaNedorobka] = useState('')
   const [addingNedorobka, setAddingNedorobka] = useState(false)
 
-  // KLAES RTF upload + preview
+  // KLAES dokumenty (viacero súborov)
   const rtfInputRef = useRef<HTMLInputElement>(null)
+  const [zakazkaDocs, setZakazkaDocs] = useState<ZakazkaDoc[]>([])
   const [uploadingRtf, setUploadingRtf] = useState(false)
   const [rtfError, setRtfError] = useState<string | null>(null)
-  const [rtfPreview, setRtfPreview] = useState<string | null>(null)
-  const [loadingRtfPreview, setLoadingRtfPreview] = useState(false)
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null)
+  const [previewContent, setPreviewContent] = useState<Record<string, string>>({})
 
   // servis
   const [servisItems, setServisItems] = useState<ServisItem[]>([])
@@ -303,15 +312,17 @@ export default function ZakazkaDetail() {
     setZameranieLoading(false)
   }
 
-  // ── load protokol + nedorobky ──
+  // ── load protokol + nedorobky + dokumenty ──
   async function loadProtokolTab() {
     if (!id) return
-    const [{ data: pData }, { data: nData }] = await Promise.all([
+    const [{ data: pData }, { data: nData }, { data: dData }] = await Promise.all([
       supabase.from('protokoly').select('*').eq('zakazka_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('nedorobky').select('*').eq('zakazka_id', id).order('created_at'),
+      supabase.from('zakazka_dokumenty').select('*').eq('zakazka_id', id).order('created_at'),
     ])
     setProtokal(pData ?? {})
     setNedorobky((nData ?? []) as NedorobekItem[])
+    setZakazkaDocs((dData ?? []) as ZakazkaDoc[])
   }
 
   // ── load servis ──
@@ -408,19 +419,47 @@ export default function ZakazkaDetail() {
     setTimeout(() => setProtokolSaved(false), 2000)
   }
 
-  // ── RTF preview ──
-  async function loadRtfPreview() {
-    if (!protokol.klaes_rtf_url) return
-    if (rtfPreview !== null) { setRtfPreview(null); return } // toggle off
-    setLoadingRtfPreview(true)
+  // ── RTF preview per doc ──
+  async function togglePreview(doc: ZakazkaDoc) {
+    if (previewDocId === doc.id) { setPreviewDocId(null); return }
+    setPreviewDocId(doc.id)
+    if (previewContent[doc.id] !== undefined) return // already loaded
     try {
-      const res = await fetch(protokol.klaes_rtf_url)
+      const res = await fetch(doc.url)
       const text = await res.text()
-      setRtfPreview(parseRtf(text))
+      setPreviewContent(prev => ({ ...prev, [doc.id]: parseRtf(text) }))
     } catch {
-      setRtfPreview('Chyba pri načítaní súboru.')
+      setPreviewContent(prev => ({ ...prev, [doc.id]: 'Chyba pri načítaní súboru.' }))
     }
-    setLoadingRtfPreview(false)
+  }
+
+  // ── upload RTF (pridá do zoznamu) ──
+  async function uploadRtf(file: File) {
+    if (!id) return
+    setUploadingRtf(true)
+    setRtfError(null)
+    const ts = Date.now()
+    const storagePath = `${id}/${ts}_${file.name}`
+    const { error: upErr } = await supabase.storage.from('zakazky-docs').upload(storagePath, file)
+    if (upErr) { setRtfError('Upload zlyhal: ' + upErr.message); setUploadingRtf(false); return }
+    const { data: urlData } = supabase.storage.from('zakazky-docs').getPublicUrl(storagePath)
+    const { data: newDoc } = await supabase.from('zakazka_dokumenty').insert({
+      zakazka_id: id,
+      nazov: file.name,
+      url: urlData.publicUrl,
+      storage_path: storagePath,
+      typ: 'klaes_rtf',
+    }).select().single()
+    if (newDoc) setZakazkaDocs(prev => [...prev, newDoc as ZakazkaDoc])
+    setUploadingRtf(false)
+  }
+
+  // ── delete doc ──
+  async function deleteDoc(doc: ZakazkaDoc) {
+    await supabase.storage.from('zakazky-docs').remove([doc.storage_path])
+    await supabase.from('zakazka_dokumenty').delete().eq('id', doc.id)
+    setZakazkaDocs(prev => prev.filter(d => d.id !== doc.id))
+    if (previewDocId === doc.id) setPreviewDocId(null)
   }
 
   // ── add nedorobka ──
@@ -442,35 +481,6 @@ export default function ZakazkaDetail() {
   async function deleteNedorobka(itemId: string) {
     await supabase.from('nedorobky').delete().eq('id', itemId)
     setNedorobky(prev => prev.filter(n => n.id !== itemId))
-  }
-
-  // ── upload KLAES RTF ──
-  async function uploadRtf(file: File) {
-    if (!id) return
-    setUploadingRtf(true)
-    setRtfError(null)
-    const path = `${id}/klaes.rtf`
-    const { error: uploadErr } = await supabase.storage.from('zakazky-docs').upload(path, file, { upsert: true })
-    if (uploadErr) {
-      setRtfError('Upload zlyhal: ' + uploadErr.message)
-      setUploadingRtf(false)
-      return
-    }
-    const { data: urlData } = supabase.storage.from('zakazky-docs').getPublicUrl(path)
-    const url = urlData.publicUrl
-    // save to protokoly record
-    if (protokol.id) {
-      await supabase.from('protokoly').update({ klaes_rtf_url: url }).eq('id', protokol.id)
-    } else {
-      const { data } = await supabase.from('protokoly').insert({ zakazka_id: id, klaes_rtf_url: url }).select().single()
-      if (data) {
-        setProtokal({ ...data as ProtokolData })
-        setUploadingRtf(false)
-        return
-      }
-    }
-    setProtokal(prev => ({ ...prev, klaes_rtf_url: url }))
-    setUploadingRtf(false)
   }
 
   // ── add servis ──
@@ -811,71 +821,96 @@ export default function ZakazkaDetail() {
             </div>
           </div>
 
-          {/* KLAES RTF upload */}
+          {/* KLAES dokumenty */}
           <div className="bg-white rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.08)] p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Upload size={16} className="text-[#0779e4]" />
-              <h2 className="font-semibold text-[#1a2332]">KLAES súbor</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Upload size={16} className="text-[#0779e4]" />
+                <h2 className="font-semibold text-[#1a2332]">KLAES súbory</h2>
+                {zakazkaDocs.length > 0 && (
+                  <span className="text-xs text-[#8b9bb4]">{zakazkaDocs.length} súbor{zakazkaDocs.length > 1 ? 'y' : ''}</span>
+                )}
+              </div>
+              <div>
+                <input
+                  ref={rtfInputRef}
+                  type="file"
+                  accept=".rtf,.RTF"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (file) uploadRtf(file)
+                    e.target.value = ''
+                  }}
+                />
+                <button
+                  onClick={() => rtfInputRef.current?.click()}
+                  disabled={uploadingRtf}
+                  className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-[#c1cad6] text-[#4a5568] text-sm rounded-[8px] hover:border-[#0779e4] hover:text-[#0779e4] disabled:opacity-60 transition-colors"
+                >
+                  {uploadingRtf ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                  Pridať súbor
+                </button>
+              </div>
             </div>
 
-            {protokol.klaes_rtf_url ? (
-              <>
-                <div className="flex items-center gap-3 p-3 bg-[#e8f5e9] rounded-[8px] mb-3">
-                  <FileText size={18} className="text-[#66bb6a] flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#1a2332]">KLAES RTF nahraté</p>
-                    <p className="text-xs text-[#8b9bb4] truncate">{protokol.klaes_rtf_url}</p>
-                  </div>
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button
-                      onClick={loadRtfPreview}
-                      disabled={loadingRtfPreview}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#4a5568] border border-[#e0e0e0] rounded-[6px] hover:bg-[#f4f6f9] transition-colors"
-                    >
-                      {loadingRtfPreview ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
-                      {rtfPreview !== null ? 'Skryť' : 'Náhľad'}
-                    </button>
-                    <a
-                      href={protokol.klaes_rtf_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#0779e4] border border-[#0779e4]/30 rounded-[6px] hover:bg-[#0779e4]/5 transition-colors"
-                    >
-                      <Download size={12} /> Stiahnuť
-                    </a>
-                  </div>
-                </div>
-                {rtfPreview !== null && (
-                  <pre className="mb-3 p-4 bg-[#f4f6f9] rounded-[8px] text-xs text-[#1a2332] whitespace-pre-wrap font-mono overflow-auto max-h-96 leading-relaxed border border-[#e0e0e0]">
-                    {rtfPreview || '(prázdny súbor)'}
-                  </pre>
-                )}
-              </>
+            {zakazkaDocs.length === 0 ? (
+              <p className="text-sm text-[#8b9bb4]">Žiadne súbory — nahrajte .rtf exportovaný z KLAES.</p>
             ) : (
-              <p className="text-sm text-[#8b9bb4] mb-3">Žiadny KLAES súbor — nahrajte .rtf exportovaný z KLAES.</p>
+              <div className="space-y-2">
+                {zakazkaDocs.map(doc => (
+                  <div key={doc.id}>
+                    <div className="flex items-center gap-3 p-3 bg-[#f4f6f9] rounded-[8px]">
+                      <FileText size={16} className="text-[#0779e4] flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[#1a2332] truncate">{doc.nazov}</p>
+                        <p className="text-xs text-[#8b9bb4]">
+                          {new Date(doc.created_at).toLocaleDateString('sk-SK', { day: 'numeric', month: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => togglePreview(doc)}
+                          className={clsx(
+                            'flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-[6px] transition-colors',
+                            previewDocId === doc.id
+                              ? 'bg-[#1c2636] text-white'
+                              : 'text-[#4a5568] border border-[#e0e0e0] hover:bg-white'
+                          )}
+                        >
+                          {previewContent[doc.id] === undefined && previewDocId === doc.id
+                            ? <Loader2 size={11} className="animate-spin" />
+                            : <FileText size={11} />}
+                          {previewDocId === doc.id ? 'Skryť' : 'Náhľad'}
+                        </button>
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-[#0779e4] border border-[#0779e4]/30 rounded-[6px] hover:bg-[#0779e4]/5 transition-colors"
+                        >
+                          <Download size={11} />
+                        </a>
+                        <button
+                          onClick={() => deleteDoc(doc)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-red-400 border border-red-200 rounded-[6px] hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </div>
+                    {previewDocId === doc.id && previewContent[doc.id] !== undefined && (
+                      <pre className="mt-1 p-4 bg-[#fafbfc] rounded-[8px] text-xs text-[#1a2332] whitespace-pre-wrap font-mono overflow-auto max-h-80 leading-relaxed border border-[#e0e0e0]">
+                        {previewContent[doc.id] || '(prázdny súbor)'}
+                      </pre>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
 
-            <input
-              ref={rtfInputRef}
-              type="file"
-              accept=".rtf,.RTF"
-              className="hidden"
-              onChange={e => {
-                const file = e.target.files?.[0]
-                if (file) uploadRtf(file)
-                e.target.value = ''
-              }}
-            />
-            <button
-              onClick={() => rtfInputRef.current?.click()}
-              disabled={uploadingRtf}
-              className="flex items-center gap-2 px-4 py-2 border border-dashed border-[#c1cad6] text-[#4a5568] text-sm rounded-[8px] hover:border-[#0779e4] hover:text-[#0779e4] disabled:opacity-60 transition-colors"
-            >
-              {uploadingRtf ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-              {protokol.klaes_rtf_url ? 'Nahradiť súbor' : 'Nahrať KLAES .rtf'}
-            </button>
             {rtfError && (
-              <p className="mt-2 text-sm text-red-500 bg-red-50 px-3 py-2 rounded-[8px]">{rtfError}</p>
+              <p className="mt-3 text-sm text-red-500 bg-red-50 px-3 py-2 rounded-[8px]">{rtfError}</p>
             )}
           </div>
 
