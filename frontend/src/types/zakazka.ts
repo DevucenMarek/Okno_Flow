@@ -32,13 +32,16 @@ export interface Zakazka {
   dat_odovzdanie?: string | null      // 10. Odovzdanie zákazníkovi
   dat_dofakturacia?: string | null    // 11. Dofaktúrácia uhradená
 
-  // ── KLAES / interná výroba (zachované pre spätnú kompatibilitu) ───────────
+  // ── Dodávateľ ─────────────────────────────────────────────────────────────
+  cislo_obj_dodavatela?: string | null  // externé číslo objednávky od dodávateľa
+  cislo_vyrobnej_davky?: string | null  // KLAES interné číslo výrobnej dávky
+
+  // ── Zachované pre spätnú kompatibilitu ────────────────────────────────────
   dat_inventura?: string | null
   dat_dokumentacia?: string | null
   dat_ace?: string | null
   dat_potvrdenie?: string | null
   dat_lozny_plan?: string | null
-  cislo_vyrobnej_davky?: string | null
 
   created_at: string
   [key: string]: unknown

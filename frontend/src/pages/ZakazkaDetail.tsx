@@ -110,7 +110,7 @@ type EditForm = {
   zakaznik_nazov: string; adresa_montaze: string; kontakt: string; obchodnik: string; stav: string
   popis_systemu: string; typ_prac: string; rozsah_vyrobkov: string; pocet_napilkov: string
   objem_spolu: string; zalona: string; doplatok: string; termin_zod: string
-  poznamka: string; cislo_vyrobnej_davky: string
+  poznamka: string; cislo_vyrobnej_davky: string; cislo_obj_dodavatela: string
   // pipeline
   dat_dopyt: string; dat_ponuka: string; dat_odsouhlasenie: string; dat_zameranie: string
   dat_zmluva: string; dat_zalona_prijata: string; dat_objednavka: string
@@ -128,6 +128,7 @@ function zakazkaToForm(z: Zakazka): EditForm {
     objem_spolu: z.objem_spolu?.toString() ?? '', zalona: z.zalona?.toString() ?? '',
     doplatok: z.doplatok?.toString() ?? '', termin_zod: z.termin_zod ?? '',
     poznamka: d('poznamka'), cislo_vyrobnej_davky: z.cislo_vyrobnej_davky ?? '',
+    cislo_obj_dodavatela: z.cislo_obj_dodavatela ?? '',
     dat_dopyt: d('dat_dopyt'), dat_ponuka: d('dat_ponuka'), dat_odsouhlasenie: d('dat_odsouhlasenie'),
     dat_zameranie: d('dat_zameranie'), dat_zmluva: d('dat_zmluva'), dat_zalona_prijata: d('dat_zalona_prijata'),
     dat_objednavka: d('dat_objednavka'), dat_prijem_sklad: d('dat_prijem_sklad'),
@@ -255,6 +256,7 @@ export default function ZakazkaDetail() {
       objem_spolu: num(editForm.objem_spolu), zalona: num(editForm.zalona), doplatok: num(editForm.doplatok),
       termin_zod: n(editForm.termin_zod), poznamka: n(editForm.poznamka),
       cislo_vyrobnej_davky: n(editForm.cislo_vyrobnej_davky),
+      cislo_obj_dodavatela: n(editForm.cislo_obj_dodavatela),
       dat_dopyt: n(editForm.dat_dopyt), dat_ponuka: n(editForm.dat_ponuka),
       dat_odsouhlasenie: n(editForm.dat_odsouhlasenie), dat_zameranie: n(editForm.dat_zameranie),
       dat_zmluva: n(editForm.dat_zmluva), dat_zalona_prijata: n(editForm.dat_zalona_prijata),
@@ -397,6 +399,9 @@ export default function ZakazkaDetail() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-[#1a2332]">{zakazka.cislo_zod}</h1>
             <span className={clsx('text-xs font-semibold px-2.5 py-1 rounded-full', s.cls)}>{s.label}</span>
+            {zakazka.cislo_obj_dodavatela && (
+              <span className="text-xs font-mono bg-[#fff3e0] text-[#e65100] px-2 py-1 rounded-[6px]">Obj: {zakazka.cislo_obj_dodavatela}</span>
+            )}
             {zakazka.cislo_vyrobnej_davky && (
               <span className="text-xs font-mono bg-[#f4f6f9] text-[#8b9bb4] px-2 py-1 rounded-[6px]">KLAES: {zakazka.cislo_vyrobnej_davky}</span>
             )}
@@ -839,8 +844,9 @@ export default function ZakazkaDetail() {
                 <Field label="Adresa montáže"><input value={editForm.adresa_montaze} onChange={ef('adresa_montaze')} className={inputCls} /></Field>
                 <Field label="Kontakt"><input value={editForm.kontakt} onChange={ef('kontakt')} className={inputCls} /></Field>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <Field label="Obchodník"><input value={editForm.obchodnik} onChange={ef('obchodnik')} className={inputCls} /></Field>
+                <Field label="Č. obj. dodávateľa"><input value={editForm.cislo_obj_dodavatela} onChange={ef('cislo_obj_dodavatela')} placeholder="napr. KL-2026-04512" className={inputCls} /></Field>
                 <Field label="KLAES – č. výrobnej dávky"><input value={editForm.cislo_vyrobnej_davky} onChange={ef('cislo_vyrobnej_davky')} className={inputCls} /></Field>
               </div>
               <hr className="border-[#f4f6f9]" />
