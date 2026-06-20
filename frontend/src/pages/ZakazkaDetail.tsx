@@ -10,6 +10,25 @@ import { supabase } from '@/lib/supabase'
 import { stavLabels, Zakazka } from '@/types/zakazka'
 import clsx from 'clsx'
 
+// ─── RTF parser ─────────────────────────────────────────────────────────────
+
+function parseRtf(rtf: string): string {
+  return rtf
+    .replace(/\{\\[^{}]*\}/g, '')          // remove metadata groups
+    .replace(/\\par\b\s*/gi, '\n')         // paragraph breaks
+    .replace(/\\pard\b[^\\]*/gi, '')       // paragraph props
+    .replace(/\\tab\b/gi, '\t')            // tabs
+    .replace(/\\line\b/gi, '\n')           // line breaks
+    .replace(/\\page\b/gi, '\n\n')         // page breaks
+    .replace(/\\'[0-9a-f]{2}/gi, '')       // hex-escaped chars (simplified)
+    .replace(/\\[a-z]+\-?[0-9]* ?/gi, '') // all control words
+    .replace(/[{}\\]/g, '')               // remaining braces/backslashes
+    .replace(/[ \t]+/g, ' ')             // collapse spaces
+    .replace(/^ +/gm, '')                 // trim line starts
+    .replace(/\n{3,}/g, '\n\n')           // max 2 blank lines
+    .trim()
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function formatEur(n?: number | null) {
@@ -206,10 +225,12 @@ export default function ZakazkaDetail() {
   const [novaNedorobka, setNovaNedorobka] = useState('')
   const [addingNedorobka, setAddingNedorobka] = useState(false)
 
-  // KLAES RTF upload
+  // KLAES RTF upload + preview
   const rtfInputRef = useRef<HTMLInputElement>(null)
   const [uploadingRtf, setUploadingRtf] = useState(false)
   const [rtfError, setRtfError] = useState<string | null>(null)
+  const [rtfPreview, setRtfPreview] = useState<string | null>(null)
+  const [loadingRtfPreview, setLoadingRtfPreview] = useState(false)
 
   // servis
   const [servisItems, setServisItems] = useState<ServisItem[]>([])
@@ -337,6 +358,21 @@ export default function ZakazkaDetail() {
     setProtokolSaving(false)
     setProtokolSaved(true)
     setTimeout(() => setProtokolSaved(false), 2000)
+  }
+
+  // ── RTF preview ──
+  async function loadRtfPreview() {
+    if (!protokol.klaes_rtf_url) return
+    if (rtfPreview !== null) { setRtfPreview(null); return } // toggle off
+    setLoadingRtfPreview(true)
+    try {
+      const res = await fetch(protokol.klaes_rtf_url)
+      const text = await res.text()
+      setRtfPreview(parseRtf(text))
+    } catch {
+      setRtfPreview('Chyba pri načítaní súboru.')
+    }
+    setLoadingRtfPreview(false)
   }
 
   // ── add nedorobka ──
@@ -735,21 +771,38 @@ export default function ZakazkaDetail() {
             </div>
 
             {protokol.klaes_rtf_url ? (
-              <div className="flex items-center gap-3 p-3 bg-[#e8f5e9] rounded-[8px] mb-3">
-                <FileText size={18} className="text-[#66bb6a] flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#1a2332]">KLAES RTF nahraté</p>
-                  <p className="text-xs text-[#8b9bb4] truncate">{protokol.klaes_rtf_url}</p>
+              <>
+                <div className="flex items-center gap-3 p-3 bg-[#e8f5e9] rounded-[8px] mb-3">
+                  <FileText size={18} className="text-[#66bb6a] flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[#1a2332]">KLAES RTF nahraté</p>
+                    <p className="text-xs text-[#8b9bb4] truncate">{protokol.klaes_rtf_url}</p>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button
+                      onClick={loadRtfPreview}
+                      disabled={loadingRtfPreview}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#4a5568] border border-[#e0e0e0] rounded-[6px] hover:bg-[#f4f6f9] transition-colors"
+                    >
+                      {loadingRtfPreview ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+                      {rtfPreview !== null ? 'Skryť' : 'Náhľad'}
+                    </button>
+                    <a
+                      href={protokol.klaes_rtf_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#0779e4] border border-[#0779e4]/30 rounded-[6px] hover:bg-[#0779e4]/5 transition-colors"
+                    >
+                      <Download size={12} /> Stiahnuť
+                    </a>
+                  </div>
                 </div>
-                <a
-                  href={protokol.klaes_rtf_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#0779e4] border border-[#0779e4]/30 rounded-[6px] hover:bg-[#0779e4]/5 transition-colors flex-shrink-0"
-                >
-                  <Download size={12} /> Stiahnuť
-                </a>
-              </div>
+                {rtfPreview !== null && (
+                  <pre className="mb-3 p-4 bg-[#f4f6f9] rounded-[8px] text-xs text-[#1a2332] whitespace-pre-wrap font-mono overflow-auto max-h-96 leading-relaxed border border-[#e0e0e0]">
+                    {rtfPreview || '(prázdny súbor)'}
+                  </pre>
+                )}
+              </>
             ) : (
               <p className="text-sm text-[#8b9bb4] mb-3">Žiadny KLAES súbor — nahrajte .rtf exportovaný z KLAES.</p>
             )}
