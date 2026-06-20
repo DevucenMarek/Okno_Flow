@@ -1,11 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import {
   ArrowLeft, CheckCircle2, Circle, Clock, MapPin,
   Phone, User, Package, Euro, Calendar, FileText,
-  Wrench, ChevronRight, Edit2,
+  Wrench, ChevronRight, Edit2, Loader2,
 } from 'lucide-react'
-import { mockZakazky } from '@/data/mockZakazky'
-import { stavLabels } from '@/types/zakazka'
+import { supabase } from '@/lib/supabase'
+import { stavLabels, Zakazka } from '@/types/zakazka'
 import clsx from 'clsx'
 
 function formatEur(n?: number) {
@@ -47,7 +48,30 @@ const milnikyDef = [
 export default function ZakazkaDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const zakazka = mockZakazky.find(z => z.id === id)
+  const [zakazka, setZakazka] = useState<Zakazka | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase
+        .from('zakazky')
+        .select('*')
+        .eq('id', id)
+        .single()
+      setZakazka(data)
+      setLoading(false)
+    }
+    load()
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-[#8b9bb4]">
+        <Loader2 size={18} className="animate-spin" />
+        <span className="text-sm">Načítavam zákazku...</span>
+      </div>
+    )
+  }
 
   if (!zakazka) {
     return (
