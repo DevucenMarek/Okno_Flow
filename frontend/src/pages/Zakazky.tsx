@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Plus, ChevronRight, CheckCircle2, Circle, Clock, Loader2, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { StavZakazky, stavLabels, Zakazka } from '@/types/zakazka'
+import { StavZakazky, stavLabels, Zakazka, PIPELINE } from '@/types/zakazka'
 import clsx from 'clsx'
 
 const filtre: { key: StavZakazky | 'vsetky'; label: string }[] = [
@@ -14,15 +14,8 @@ const filtre: { key: StavZakazky | 'vsetky'; label: string }[] = [
   { key: 'storno', label: 'Storno' },
 ]
 
-const milniky = [
-  { key: 'dat_dokumentacia', label: 'Dok.' },
-  { key: 'dat_objednavka',   label: 'Obj.' },
-  { key: 'dat_ace',          label: 'ACE' },
-  { key: 'dat_potvrdenie',   label: 'Potv.' },
-  { key: 'dat_lozny_plan',   label: 'Lož.' },
-  { key: 'dat_prijem_sklad', label: 'Sklad' },
-  { key: 'dat_montaz',       label: 'Mont.' },
-]
+// Pipeline míľniky — skrátené popisky pre tabuľku
+const milniky = PIPELINE.map(p => ({ key: p.key, label: p.label }))
 
 function formatEur(n?: number | null) {
   if (!n) return '—'
@@ -105,9 +98,38 @@ export default function Zakazky() {
     setSaving(true)
     setError(null)
 
+    const today = new Date().toISOString().split('T')[0]
+    const nazov = form.zakaznik_nazov.trim()
+
+    // Nájdi existujúceho zákazníka alebo ho vytvor
+    let zakaznikId: string | null = null
+    const { data: existing } = await supabase
+      .from('zakaznici')
+      .select('id')
+      .ilike('nazov', nazov)
+      .limit(1)
+      .maybeSingle()
+
+    if (existing) {
+      zakaznikId = existing.id
+      // Aktualizuj kontakt/adresu ak sú vyplnené a zatiaľ chýbajú
+      await supabase.from('zakaznici').update({
+        ...(form.adresa_montaze ? { adresa: form.adresa_montaze } : {}),
+        ...(form.kontakt ? { kontakt: form.kontakt } : {}),
+      }).eq('id', zakaznikId).is('adresa', null)
+    } else {
+      const { data: novy } = await supabase.from('zakaznici').insert({
+        nazov,
+        adresa: form.adresa_montaze || null,
+        kontakt: form.kontakt || null,
+      }).select('id').single()
+      zakaznikId = novy?.id ?? null
+    }
+
     const payload = {
       cislo_zod: form.cislo_zod.trim(),
-      zakaznik_nazov: form.zakaznik_nazov.trim(),
+      zakaznik_nazov: nazov,
+      zakaznik_id: zakaznikId,
       adresa_montaze: form.adresa_montaze || null,
       kontakt: form.kontakt || null,
       obchodnik: form.obchodnik || null,
@@ -120,6 +142,7 @@ export default function Zakazky() {
       zalona: form.zalona ? parseFloat(form.zalona.replace(',', '.')) : null,
       termin_zod: form.termin_zod || null,
       poznamka: form.poznamka || null,
+      dat_dopyt: today,
     }
 
     const { error: e } = await supabase.from('zakazky').insert(payload)
