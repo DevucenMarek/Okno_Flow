@@ -12,21 +12,69 @@ import clsx from 'clsx'
 
 // ─── RTF parser ─────────────────────────────────────────────────────────────
 
+// CP1250 → Unicode (Slovak/Czech characters as used in KLAES RTF exports)
+const CP1250: Record<number, string> = {
+  0x80:'€',0x8a:'Š',0x8c:'Ś',0x8d:'Ť',0x8e:'Ž',0x8f:'Ź',
+  0x9a:'š',0x9c:'ś',0x9d:'ť',0x9e:'ž',0x9f:'ź',
+  0xa1:'ˇ',0xa2:'˘',0xa3:'Ł',0xa5:'Ą',0xaa:'Ş',0xaf:'Ż',
+  0xb0:'°',0xb1:'±',0xb3:'ł',0xb9:'ą',0xba:'ş',0xbc:'Ľ',0xbe:'ľ',0xbf:'ż',
+  0xc0:'Ŕ',0xc1:'Á',0xc2:'Â',0xc3:'Ă',0xc4:'Ä',0xc5:'Ĺ',0xc6:'Ć',0xc7:'Ç',
+  0xc8:'Č',0xc9:'É',0xca:'Ę',0xcb:'Ë',0xcc:'Ě',0xcd:'Í',0xce:'Î',0xcf:'Ď',
+  0xd0:'Đ',0xd1:'Ń',0xd2:'Ň',0xd3:'Ó',0xd4:'Ô',0xd5:'Ő',0xd6:'Ö',
+  0xd8:'Ř',0xd9:'Ů',0xda:'Ú',0xdb:'Ű',0xdc:'Ü',0xdd:'Ý',0xde:'Ţ',0xdf:'ß',
+  0xe0:'ŕ',0xe1:'á',0xe2:'â',0xe3:'ă',0xe4:'ä',0xe5:'ĺ',0xe6:'ć',0xe7:'ç',
+  0xe8:'č',0xe9:'é',0xea:'ę',0xeb:'ë',0xec:'ě',0xed:'í',0xee:'î',0xef:'ď',
+  0xf0:'đ',0xf1:'ń',0xf2:'ň',0xf3:'ó',0xf4:'ô',0xf5:'ő',0xf6:'ö',
+  0xf8:'ř',0xf9:'ů',0xfa:'ú',0xfb:'ű',0xfc:'ü',0xfd:'ý',0xfe:'ţ',
+}
+
 function parseRtf(rtf: string): string {
-  return rtf
-    .replace(/\{\\[^{}]*\}/g, '')          // remove metadata groups
-    .replace(/\\par\b\s*/gi, '\n')         // paragraph breaks
-    .replace(/\\pard\b[^\\]*/gi, '')       // paragraph props
-    .replace(/\\tab\b/gi, '\t')            // tabs
-    .replace(/\\line\b/gi, '\n')           // line breaks
-    .replace(/\\page\b/gi, '\n\n')         // page breaks
-    .replace(/\\'[0-9a-f]{2}/gi, '')       // hex-escaped chars (simplified)
-    .replace(/\\[a-z]+\-?[0-9]* ?/gi, '') // all control words
-    .replace(/[{}\\]/g, '')               // remaining braces/backslashes
-    .replace(/[ \t]+/g, ' ')             // collapse spaces
-    .replace(/^ +/gm, '')                 // trim line starts
-    .replace(/\n{3,}/g, '\n\n')           // max 2 blank lines
-    .trim()
+  if (!rtf) return ''
+  // Not RTF — show raw snippet so user sees something
+  if (!rtf.trimStart().startsWith('{\\rtf')) {
+    return '[Upozornenie: súbor nie je vo formáte RTF]\n\n' + rtf.slice(0, 1000)
+  }
+
+  let t = rtf
+
+  // 1. Remove non-content groups (fonts, colors, pictures, etc.)
+  for (const g of ['fonttbl','colortbl','stylesheet','info','pict','object','header','footer','filetbl']) {
+    t = t.replace(new RegExp(`\\{\\\\${g}[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}`, 'gi'), '')
+  }
+  // Remove \* destination groups (e.g. {\* \generator ...})
+  t = t.replace(/\{\\\*[^{}]*\}/g, '')
+
+  // 2. Paragraph / line breaks
+  t = t.replace(/\\par\b\s*/gi, '\n')
+  t = t.replace(/\\line\b/gi, '\n')
+  t = t.replace(/\\tab\b/gi, '\t')
+  t = t.replace(/\\page\b/gi, '\n\n')
+
+  // 3. Unicode escapes \uNNNN? (must come before hex)
+  t = t.replace(/\\u(-?\d+)\??/g, (_, n) => {
+    const code = parseInt(n); return String.fromCharCode(code < 0 ? code + 65536 : code)
+  })
+
+  // 4. CP1250 hex escapes \'xx (KLAES uses these for Slovak chars)
+  t = t.replace(/\\'([0-9a-fA-F]{2})/g, (_, hex) => {
+    const code = parseInt(hex, 16)
+    if (code < 0x80) return String.fromCharCode(code)
+    return CP1250[code] ?? ''
+  })
+
+  // 5. Remove all remaining RTF control words
+  t = t.replace(/\\[a-z*]+-?[0-9]* ?/gi, '')
+  t = t.replace(/\\\n/g, '')
+
+  // 6. Remove braces and stray backslashes
+  t = t.replace(/[{}\\]/g, '')
+
+  // 7. Tidy whitespace
+  t = t.replace(/[ \t]{2,}/g, ' ')
+  t = t.replace(/^ +| +$/gm, '')
+  t = t.replace(/\n{3,}/g, '\n\n')
+
+  return t.trim()
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
