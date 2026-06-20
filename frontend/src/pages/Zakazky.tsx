@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, ChevronRight, CheckCircle2, Circle, Clock, Loader2 } from 'lucide-react'
+import { Search, Plus, ChevronRight, CheckCircle2, Circle, Clock, Loader2, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { StavZakazky, stavLabels, Zakazka } from '@/types/zakazka'
 import clsx from 'clsx'
@@ -34,30 +34,108 @@ function formatDatum(d?: string) {
   return new Date(d).toLocaleDateString('sk-SK', { day: 'numeric', month: 'numeric', year: '2-digit' })
 }
 
+const inputCls = 'w-full px-3 py-2 rounded-[8px] border border-[#e0e0e0] text-sm text-[#1a2332] placeholder:text-[#c1cad6] focus:outline-none focus:border-[#0779e4] focus:ring-2 focus:ring-[#0779e4]/10 transition-colors bg-white'
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-[#8b9bb4] mb-1.5">
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+interface NovaZakazkaForm {
+  cislo_zod: string
+  zakaznik_nazov: string
+  adresa_montaze: string
+  kontakt: string
+  obchodnik: string
+  stav: StavZakazky
+  popis_systemu: string
+  typ_prac: string
+  rozsah_vyrobkov: string
+  pocet_napilkov: string
+  objem_spolu: string
+  zalona: string
+  termin_zod: string
+  poznamka: string
+}
+
+const emptyForm: NovaZakazkaForm = {
+  cislo_zod: '', zakaznik_nazov: '', adresa_montaze: '', kontakt: '',
+  obchodnik: '', stav: 'nova', popis_systemu: '', typ_prac: '',
+  rozsah_vyrobkov: '', pocet_napilkov: '', objem_spolu: '', zalona: '',
+  termin_zod: '', poznamka: '',
+}
+
 export default function Zakazky() {
   const navigate = useNavigate()
   const [filter, setFilter] = useState<StavZakazky | 'vsetky'>('vsetky')
   const [search, setSearch] = useState('')
   const [zakazky, setZakazky] = useState<Zakazka[]>([])
   const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
+  const [form, setForm] = useState<NovaZakazkaForm>(emptyForm)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      let query = supabase
-        .from('zakazky')
-        .select('*')
-        .order('created_at', { ascending: false })
+  async function load() {
+    setLoading(true)
+    let query = supabase
+      .from('zakazky')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-      if (filter !== 'vsetky') query = query.eq('stav', filter)
-      if (search) query = query.or(`cislo_zod.ilike.%${search}%,zakaznik_nazov.ilike.%${search}%,adresa_montaze.ilike.%${search}%`)
+    if (filter !== 'vsetky') query = query.eq('stav', filter)
+    if (search) query = query.or(`cislo_zod.ilike.%${search}%,zakaznik_nazov.ilike.%${search}%,adresa_montaze.ilike.%${search}%`)
 
-      const { data } = await query
-      setZakazky(data ?? [])
-      setLoading(false)
+    const { data } = await query
+    setZakazky(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [filter, search])
+
+  async function saveZakazka() {
+    if (!form.cislo_zod.trim()) { setError('Číslo ZoD je povinné'); return }
+    if (!form.zakaznik_nazov.trim()) { setError('Zákazník je povinný'); return }
+    setSaving(true)
+    setError(null)
+
+    const payload = {
+      cislo_zod: form.cislo_zod.trim(),
+      zakaznik_nazov: form.zakaznik_nazov.trim(),
+      adresa_montaze: form.adresa_montaze || null,
+      kontakt: form.kontakt || null,
+      obchodnik: form.obchodnik || null,
+      stav: form.stav,
+      popis_systemu: form.popis_systemu || null,
+      typ_prac: form.typ_prac || null,
+      rozsah_vyrobkov: form.rozsah_vyrobkov || null,
+      pocet_napilkov: form.pocet_napilkov ? parseInt(form.pocet_napilkov) : null,
+      objem_spolu: form.objem_spolu ? parseFloat(form.objem_spolu.replace(',', '.')) : null,
+      zalona: form.zalona ? parseFloat(form.zalona.replace(',', '.')) : null,
+      termin_zod: form.termin_zod || null,
+      poznamka: form.poznamka || null,
     }
+
+    const { error: e } = await supabase.from('zakazky').insert(payload)
+    if (e) {
+      setError(e.message.includes('unique') ? 'Zákazka s týmto číslom ZoD už existuje' : e.message)
+      setSaving(false)
+      return
+    }
+    setSaving(false)
+    setShowModal(false)
+    setForm(emptyForm)
     load()
-  }, [filter, search])
+  }
+
+  const f = (key: keyof NovaZakazkaForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setForm(prev => ({ ...prev, [key]: e.target.value }))
 
   return (
     <div className="space-y-4">
@@ -67,7 +145,10 @@ export default function Zakazky() {
           <h1 className="text-2xl font-bold text-[#1a2332]">Zákazky</h1>
           <p className="text-sm text-[#8b9bb4]">{zakazky.length} zákaziek</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-[#66bb6a] text-white text-sm font-medium rounded-[8px] hover:bg-[#57a85b] transition-colors">
+        <button
+          onClick={() => { setForm(emptyForm); setError(null); setShowModal(true) }}
+          className="flex items-center gap-2 px-4 py-2 bg-[#66bb6a] text-white text-sm font-medium rounded-[8px] hover:bg-[#57a85b] transition-colors"
+        >
           <Plus size={15} /> Nová zákazka
         </button>
       </div>
@@ -75,18 +156,18 @@ export default function Zakazky() {
       {/* Filtre + Hľadanie */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex items-center gap-1 bg-white rounded-[8px] shadow-[0_1px_3px_rgba(0,0,0,0.08)] p-1">
-          {filtre.map(f => (
+          {filtre.map(fi => (
             <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
+              key={fi.key}
+              onClick={() => setFilter(fi.key)}
               className={clsx(
                 'px-3 py-1.5 rounded-[6px] text-sm font-medium transition-colors',
-                filter === f.key
+                filter === fi.key
                   ? 'bg-[#1c2636] text-white'
                   : 'text-[#8b9bb4] hover:text-[#1a2332] hover:bg-[#f4f6f9]'
               )}
             >
-              {f.label}
+              {fi.label}
             </button>
           ))}
         </div>
@@ -142,7 +223,7 @@ export default function Zakazky() {
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-[#4a5568] text-xs">{z.popis_systemu}</p>
-                        <p className="text-xs text-[#8b9bb4]">{z.typ_prac} · {z.pocet_napilkov} nápilkov</p>
+                        <p className="text-xs text-[#8b9bb4]">{z.typ_prac}{z.pocet_napilkov ? ` · ${z.pocet_napilkov} nápilkov` : ''}</p>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
@@ -202,6 +283,113 @@ export default function Zakazky() {
           </p>
         </div>
       </div>
+
+      {/* MODAL: Nová zákazka */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 backdrop-blur-sm overflow-y-auto py-8">
+          <div className="bg-white rounded-[12px] shadow-xl w-full max-w-2xl mx-4 my-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#f4f6f9]">
+              <h2 className="font-semibold text-[#1a2332]">Nová zákazka</h2>
+              <button onClick={() => setShowModal(false)} className="p-1 rounded-[6px] text-[#8b9bb4] hover:bg-[#f4f6f9] transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Row 1 */}
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Číslo ZoD" required>
+                  <input autoFocus value={form.cislo_zod} onChange={f('cislo_zod')} placeholder="napr. 26Z045" className={inputCls} />
+                </Field>
+                <Field label="Stav">
+                  <select value={form.stav} onChange={f('stav')} className={inputCls}>
+                    <option value="nova">Nová</option>
+                    <option value="aktivna">Aktívna</option>
+                    <option value="caka">Čaká</option>
+                    <option value="hotova">Hotová</option>
+                    <option value="storno">Storno</option>
+                  </select>
+                </Field>
+              </div>
+
+              {/* Row 2 */}
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Zákazník" required>
+                  <input value={form.zakaznik_nazov} onChange={f('zakaznik_nazov')} placeholder="Meno alebo firma" className={inputCls} />
+                </Field>
+                <Field label="Obchodník">
+                  <input value={form.obchodnik} onChange={f('obchodnik')} placeholder="napr. Ing. Longvová" className={inputCls} />
+                </Field>
+              </div>
+
+              {/* Row 3 */}
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Adresa montáže">
+                  <input value={form.adresa_montaze} onChange={f('adresa_montaze')} placeholder="Ulica, mesto" className={inputCls} />
+                </Field>
+                <Field label="Kontakt">
+                  <input value={form.kontakt} onChange={f('kontakt')} placeholder="+421 9XX XXX XXX" className={inputCls} />
+                </Field>
+              </div>
+
+              <hr className="border-[#f4f6f9]" />
+
+              {/* Row 4 – produkty */}
+              <div className="grid grid-cols-3 gap-4">
+                <Field label="Systém">
+                  <input value={form.popis_systemu} onChange={f('popis_systemu')} placeholder="SYNEGO, Štandard..." className={inputCls} />
+                </Field>
+                <Field label="Typ prác">
+                  <input value={form.typ_prac} onChange={f('typ_prac')} placeholder="D, M, MV, L..." className={inputCls} />
+                </Field>
+                <Field label="Počet nápilkov">
+                  <input value={form.pocet_napilkov} onChange={f('pocet_napilkov')} placeholder="0" className={inputCls} type="number" min="0" />
+                </Field>
+              </div>
+
+              <Field label="Rozsah výrobkov">
+                <input value={form.rozsah_vyrobkov} onChange={f('rozsah_vyrobkov')} placeholder="napr. 3×DKR, 5×O, 2×D" className={inputCls} />
+              </Field>
+
+              <hr className="border-[#f4f6f9]" />
+
+              {/* Row 5 – financie */}
+              <div className="grid grid-cols-3 gap-4">
+                <Field label="Objem spolu (EUR)">
+                  <input value={form.objem_spolu} onChange={f('objem_spolu')} placeholder="0.00" className={inputCls} />
+                </Field>
+                <Field label="Záloha (EUR)">
+                  <input value={form.zalona} onChange={f('zalona')} placeholder="0.00" className={inputCls} />
+                </Field>
+                <Field label="Termín ZoD">
+                  <input value={form.termin_zod} onChange={f('termin_zod')} type="date" className={inputCls} />
+                </Field>
+              </div>
+
+              <Field label="Poznámka">
+                <textarea value={form.poznamka} onChange={f('poznamka')} rows={2} className={clsx(inputCls, 'resize-none')} placeholder="Interná poznámka..." />
+              </Field>
+
+              {error && <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-[8px]">{error}</p>}
+            </div>
+
+            <div className="px-6 pb-5 flex justify-end gap-2">
+              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-[#4a5568] border border-[#e0e0e0] rounded-[8px] hover:bg-[#f4f6f9] transition-colors">
+                Zrušiť
+              </button>
+              <button
+                onClick={saveZakazka}
+                disabled={saving}
+                className="flex items-center gap-2 px-5 py-2 bg-[#66bb6a] text-white text-sm font-medium rounded-[8px] hover:bg-[#57a85b] disabled:opacity-60 transition-colors"
+              >
+                {saving && <Loader2 size={13} className="animate-spin" />}
+                Vytvoriť zákazku
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
