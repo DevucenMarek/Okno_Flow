@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Loader2, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
@@ -87,6 +87,11 @@ export default function Login() {
               <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-[8px]">{error}</p>
             )}
 
+            <div className="flex justify-end">
+              <Link to="/forgot-password" className="text-xs text-[#0779e4] hover:underline">
+                Zabudnuté heslo?
+              </Link>
+            </div>
             <button
               type="submit"
               disabled={loading}
