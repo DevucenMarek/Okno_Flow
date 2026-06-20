@@ -24,12 +24,12 @@ const milniky = [
   { key: 'dat_montaz',       label: 'Mont.' },
 ]
 
-function formatEur(n?: number) {
+function formatEur(n?: number | null) {
   if (!n) return '—'
   return n.toLocaleString('sk-SK', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 }
 
-function formatDatum(d?: string) {
+function formatDatum(d?: string | null) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('sk-SK', { day: 'numeric', month: 'numeric', year: '2-digit' })
 }
@@ -207,7 +207,7 @@ export default function Zakazky() {
               <tbody className="divide-y divide-[#f4f6f9]">
                 {zakazky.map(z => {
                   const s = stavLabels[z.stav]
-                  const record = z as Record<string, unknown>
+                  const record = z as unknown as Record<string, unknown>
                   const hotoveMilniky = milniky.filter(m => record[m.key]).length
                   return (
                     <tr key={z.id} onClick={() => navigate(`/zakazky/${z.id}`)} className="hover:bg-[#f8f9fb] transition-colors cursor-pointer group">

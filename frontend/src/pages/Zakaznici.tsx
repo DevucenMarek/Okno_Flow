@@ -6,10 +6,10 @@ import clsx from 'clsx'
 interface Zakaznik {
   id: string
   nazov: string
-  adresa?: string
-  kontakt?: string
-  email?: string
-  poznamka?: string
+  adresa?: string | null
+  kontakt?: string | null
+  email?: string | null
+  poznamka?: string | null
   created_at: string
 }
 

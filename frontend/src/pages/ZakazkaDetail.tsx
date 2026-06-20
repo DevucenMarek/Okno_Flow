@@ -9,12 +9,12 @@ import { supabase } from '@/lib/supabase'
 import { stavLabels, Zakazka } from '@/types/zakazka'
 import clsx from 'clsx'
 
-function formatEur(n?: number) {
+function formatEur(n?: number | null) {
   if (!n) return '—'
   return n.toLocaleString('sk-SK', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 }
 
-function formatDatum(d?: string, long = false) {
+function formatDatum(d?: string | null, long = false) {
   if (!d) return null
   return new Date(d).toLocaleDateString('sk-SK', long
     ? { day: 'numeric', month: 'long', year: 'numeric' }
@@ -84,7 +84,7 @@ type EditForm = {
 }
 
 function zakazkaToForm(z: Zakazka): EditForm {
-  const r = z as Record<string, unknown>
+  const r = z as unknown as Record<string, unknown>
   return {
     zakaznik_nazov: z.zakaznik_nazov ?? '',
     adresa_montaze: z.adresa_montaze ?? '',
@@ -204,7 +204,7 @@ export default function ZakazkaDetail() {
   }
 
   const s = stavLabels[zakazka.stav]
-  const record = zakazka as Record<string, unknown>
+  const record = zakazka as unknown as Record<string, unknown>
 
   const prvyNesplneny = milnikyDef.findIndex(m => !record[m.key])
   const progress = prvyNesplneny === -1 ? 100 : Math.round((prvyNesplneny / milnikyDef.length) * 100)
@@ -269,8 +269,8 @@ export default function ZakazkaDetail() {
                 <p className={clsx('text-xs font-medium leading-tight', done ? 'text-[#2e7d32]' : isNext ? 'text-amber-700' : 'text-[#8b9bb4]')}>
                   {m.label}
                 </p>
-                {record[m.key] && (
-                  <p className="text-[10px] text-[#66bb6a]">{formatDatum(record[m.key] as string)}</p>
+                {!!record[m.key] && (
+                  <p className="text-[10px] text-[#66bb6a]">{formatDatum(String(record[m.key]))}</p>
                 )}
               </div>
             )
@@ -300,7 +300,7 @@ export default function ZakazkaDetail() {
           <InfoRow label="Rozsah výrobkov" value={zakazka.rozsah_vyrobkov} />
           <InfoRow label="Typ prác" value={zakazka.typ_prac} icon={Wrench} />
           <InfoRow label="Počet nápilkov" value={zakazka.pocet_napilkov?.toString()} />
-          {(record.poznamka as string) && <InfoRow label="Poznámka" value={record.poznamka as string} icon={FileText} />}
+          {zakazka.poznamka && <InfoRow label="Poznámka" value={String(zakazka.poznamka)} icon={FileText} />}
         </div>
 
         {/* Financie */}
