@@ -8,6 +8,7 @@ import ResetPassword from '@/pages/ResetPassword'
 import Dashboard from '@/pages/Dashboard'
 import Zakaznici from '@/pages/Zakaznici'
 import Ponuky from '@/pages/Ponuky'
+import PonukaDetail from '@/pages/PonukaDetail'
 import Zameranie from '@/pages/Zameranie'
 import Zakazky from '@/pages/Zakazky'
 import ZakazkaDetail from '@/pages/ZakazkaDetail'
@@ -36,6 +37,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="zakaznici" element={<Zakaznici />} />
           <Route path="ponuky" element={<Ponuky />} />
+          <Route path="ponuky/:id" element={<PonukaDetail />} />
           <Route path="zameranie" element={<Zameranie />} />
           <Route path="zakazky" element={<Zakazky />} />
           <Route path="zakazky/:id" element={<ZakazkaDetail />} />
