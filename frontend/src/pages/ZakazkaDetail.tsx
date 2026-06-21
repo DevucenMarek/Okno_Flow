@@ -113,7 +113,7 @@ type EditForm = {
   poznamka: string; cislo_vyrobnej_davky: string; cislo_obj_dodavatela: string
   // pipeline
   dat_dopyt: string; dat_ponuka: string; dat_odsouhlasenie: string; dat_zameranie: string
-  dat_zmluva: string; dat_zalona_prijata: string; dat_objednavka: string
+  dat_finalna_ponuka: string; dat_zmluva: string; dat_zalona_prijata: string; dat_objednavka: string
   dat_prijem_sklad: string; dat_montaz: string; dat_odovzdanie: string; dat_dofakturacia: string
 }
 
@@ -130,7 +130,7 @@ function zakazkaToForm(z: Zakazka): EditForm {
     poznamka: d('poznamka'), cislo_vyrobnej_davky: z.cislo_vyrobnej_davky ?? '',
     cislo_obj_dodavatela: z.cislo_obj_dodavatela ?? '',
     dat_dopyt: d('dat_dopyt'), dat_ponuka: d('dat_ponuka'), dat_odsouhlasenie: d('dat_odsouhlasenie'),
-    dat_zameranie: d('dat_zameranie'), dat_zmluva: d('dat_zmluva'), dat_zalona_prijata: d('dat_zalona_prijata'),
+    dat_zameranie: d('dat_zameranie'), dat_finalna_ponuka: d('dat_finalna_ponuka'), dat_zmluva: d('dat_zmluva'), dat_zalona_prijata: d('dat_zalona_prijata'),
     dat_objednavka: d('dat_objednavka'), dat_prijem_sklad: d('dat_prijem_sklad'),
     dat_montaz: d('dat_montaz'), dat_odovzdanie: d('dat_odovzdanie'), dat_dofakturacia: d('dat_dofakturacia'),
   }
@@ -259,6 +259,7 @@ export default function ZakazkaDetail() {
       cislo_obj_dodavatela: n(editForm.cislo_obj_dodavatela),
       dat_dopyt: n(editForm.dat_dopyt), dat_ponuka: n(editForm.dat_ponuka),
       dat_odsouhlasenie: n(editForm.dat_odsouhlasenie), dat_zameranie: n(editForm.dat_zameranie),
+      dat_finalna_ponuka: n(editForm.dat_finalna_ponuka),
       dat_zmluva: n(editForm.dat_zmluva), dat_zalona_prijata: n(editForm.dat_zalona_prijata),
       dat_objednavka: n(editForm.dat_objednavka), dat_prijem_sklad: n(editForm.dat_prijem_sklad),
       dat_montaz: n(editForm.dat_montaz), dat_odovzdanie: n(editForm.dat_odovzdanie),

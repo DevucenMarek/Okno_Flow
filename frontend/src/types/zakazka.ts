@@ -25,7 +25,8 @@ export interface Zakazka {
   dat_ponuka?: string | null          // 2. Cenová ponuka odoslaná
   dat_odsouhlasenie?: string | null   // 3. Zákazník odsúhlasil cenu
   dat_zameranie?: string | null       // 4. Fyzické zameranie
-  dat_zmluva?: string | null          // 5. Zmluva o dielo podpísaná
+  dat_finalna_ponuka?: string | null  // 5. Finálna cenová ponuka po zameraní
+  dat_zmluva?: string | null          // 6. Zmluva o dielo podpísaná
   dat_zalona_prijata?: string | null  // 6. Záloha prijatá
   dat_objednavka?: string | null      // 7. Výrobky objednané u dodávateľa
   dat_prijem_sklad?: string | null    // 8. Výrobky prijaté na sklad
@@ -62,6 +63,7 @@ export const PIPELINE = [
   { key: 'dat_ponuka',         label: 'Ponuka',          group: 'predpredaj' },
   { key: 'dat_odsouhlasenie',  label: 'Odsúhlasenie',   group: 'predpredaj' },
   { key: 'dat_zameranie',      label: 'Zameranie',       group: 'zmluva' },
+  { key: 'dat_finalna_ponuka', label: 'Fin. ponuka',     group: 'zmluva' },
   { key: 'dat_zmluva',         label: 'Zmluva',          group: 'zmluva' },
   { key: 'dat_zalona_prijata', label: 'Záloha',          group: 'zmluva' },
   { key: 'dat_objednavka',     label: 'Objednávka',      group: 'vyroba' },
