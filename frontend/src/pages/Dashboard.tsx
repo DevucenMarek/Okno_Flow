@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, Briefcase, Calendar, Clock, AlertTriangle, CheckCircle2, ChevronRight, Loader2, Euro } from 'lucide-react'
+import { Users, Briefcase, Calendar, Clock, AlertTriangle, CheckCircle2, ChevronRight, Loader2, Euro, FileText } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { stavLabels, Zakazka, PIPELINE } from '@/types/zakazka'
@@ -321,6 +321,9 @@ export default function Dashboard() {
           <div className="bg-white rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.08)] p-4">
             <h2 className="font-semibold text-[#1a2332] mb-3">Rýchle akcie</h2>
             <div className="space-y-2">
+              <Link to="/ponuky" className="flex items-center gap-2 w-full px-3 py-2.5 rounded-[8px] bg-[#0779e4] text-white text-sm font-medium hover:bg-[#0669cc] transition-colors">
+                <FileText size={15} /> Nová ponuka
+              </Link>
               <Link to="/zakazky" className="flex items-center gap-2 w-full px-3 py-2.5 rounded-[8px] bg-[#66bb6a] text-white text-sm font-medium hover:bg-[#57a85b] transition-colors">
                 <Briefcase size={15} /> Nová zákazka
               </Link>

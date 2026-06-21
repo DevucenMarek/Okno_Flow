@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, FileText, Ruler, Briefcase,
   Calendar, ClipboardCheck, Receipt, Wrench, Package,
-  ChevronLeft, ChevronRight, Settings, LogOut,
+  ChevronLeft, ChevronRight, Settings, LogOut, BarChart2,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAuth, Rola } from '@/context/AuthContext'
@@ -27,6 +27,7 @@ const navItems: NavItem[] = [
   { to: '/faktury', label: 'Fakturácia', icon: Receipt, roles: ['admin', 'obchodnik'] },
   { to: '/servis', label: 'Servis', icon: Wrench, roles: ['admin', 'obchodnik', 'montaznik'] },
   { to: '/sklad', label: 'Sklad', icon: Package, roles: ['admin', 'skladnik'] },
+  { to: '/prehlady', label: 'Prehľady', icon: BarChart2, roles: ['admin', 'obchodnik'] },
 ]
 
 const rolaLabels: Record<Rola, string> = {
