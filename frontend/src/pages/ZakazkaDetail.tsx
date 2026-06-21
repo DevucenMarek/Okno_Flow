@@ -1,5 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
+import { useAuth } from '@/context/AuthContext'
+import { logActivity } from '@/lib/activity'
 import {
   ArrowLeft, CheckCircle2, MapPin, Phone, Mail, User, Package,
   Euro, Calendar, FileText, Wrench, Edit2, Loader2, X, Save,
@@ -148,6 +150,8 @@ const stavRekLabel: Record<string, string> = {
 export default function ZakazkaDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { profile } = useAuth()
+  const userMeno = profile?.meno || profile?.email || 'Neznámy'
 
   const [zakazka, setZakazka] = useState<Zakazka | null>(null)
   const [loading, setLoading] = useState(true)
@@ -188,6 +192,10 @@ export default function ZakazkaDetail() {
   const [rekForm, setRekForm] = useState({ popis: '', termin_riesenia: '', technik: '', dodavatel: '', cislo_objednavky: '' })
   const [rekSaving, setRekSaving] = useState(false)
 
+  // aktivita log
+  interface AktivitaLog { id: string; akcia: string; popis: string; user_meno: string; created_at: string }
+  const [aktLogy, setAktLogy] = useState<AktivitaLog[]>([])
+
   // ── loaders ──
   async function loadZakazka() {
     const { data } = await supabase.from('zakazky').select('*').eq('id', id).single()
@@ -219,12 +227,21 @@ export default function ZakazkaDetail() {
     setRekLoading(false)
   }
 
+  async function loadAktivity() {
+    const { data } = await supabase.from('aktivita_log')
+      .select('id, akcia, popis, user_meno, created_at')
+      .eq('entita_typ', 'zakazka').eq('entita_id', id)
+      .order('created_at', { ascending: false }).limit(30)
+    setAktLogy((data ?? []) as AktivitaLog[])
+  }
+
   useEffect(() => { loadZakazka() }, [id])
   useEffect(() => {
     if (tab === 'dokumenty') loadDokumenty()
     if (tab === 'zameranie') loadZameranie()
     if (tab === 'protokol') loadProtokolTab()
     if (tab === 'reklamacie') loadReklamacie()
+    if (tab === 'prehlad') loadAktivity()
   }, [tab, id])
 
   // ── pipeline: označiť krok ako hotový ──
@@ -232,8 +249,12 @@ export default function ZakazkaDetail() {
     if (!zakazka) return
     setMarkingSaving(key)
     const today = new Date().toISOString().split('T')[0]
-    const { error } = await supabase.from('zakazky').update({ [key]: today }).eq('id', zakazka.id)
-    if (!error) setZakazka(prev => prev ? { ...prev, [key]: today } : prev)
+    const stepLabel = PIPELINE.find(p => p.key === key)?.label ?? key
+    const { error } = await supabase.from('zakazky').update({ [key]: today, updated_by: userMeno }).eq('id', zakazka.id)
+    if (!error) {
+      setZakazka(prev => prev ? { ...prev, [key]: today } : prev)
+      await logActivity('zakazka', zakazka.id, 'krok', `Krok označený: ${stepLabel}`, userMeno)
+    }
     setMarkingSaving(null)
   }
 
@@ -265,8 +286,10 @@ export default function ZakazkaDetail() {
       dat_montaz: n(editForm.dat_montaz), dat_odovzdanie: n(editForm.dat_odovzdanie),
       dat_dofakturacia: n(editForm.dat_dofakturacia),
     }
+    payload.updated_by = userMeno
     const { error } = await supabase.from('zakazky').update(payload).eq('id', zakazka.id)
     if (error) { setSaveError(error.message); setSaving(false); return }
+    await logActivity('zakazka', zakazka.id, 'upravil', `Zákazka upravená`, userMeno)
     setSaving(false); setShowEdit(false); loadZakazka()
   }
   const ef = (key: keyof EditForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -283,7 +306,10 @@ export default function ZakazkaDetail() {
     const { data: newDoc } = await supabase.from('zakazka_dokumenty').insert({
       zakazka_id: id, nazov: file.name, url: urlData.publicUrl, storage_path: path, typ: uploadTyp,
     }).select().single()
-    if (newDoc) setDocs(prev => [...prev, newDoc as ZakazkaDoc])
+    if (newDoc) {
+      setDocs(prev => [...prev, newDoc as ZakazkaDoc])
+      if (id) await logActivity('zakazka', id, 'dokument', `Dokument pridaný: ${file.name}`, userMeno)
+    }
     setUploadingDoc(false)
   }
   async function deleteDoc(doc: ZakazkaDoc) {
@@ -363,6 +389,8 @@ export default function ZakazkaDetail() {
       dodavatel: rekSubTab === 'vyroba' ? rekForm.dodavatel || null : null,
       cislo_objednavky: rekSubTab === 'vyroba' ? rekForm.cislo_objednavky || null : null,
     })
+    const typLabel = rekSubTab === 'zakaznik' ? 'od zákazníka' : 'voči výrobcovi'
+    await logActivity('zakazka', id, 'reklamacia', `Reklamácia ${typLabel} pridaná`, userMeno)
     setRekSaving(false); setShowRekForm(false)
     setRekForm({ popis: '', termin_riesenia: '', technik: '', dodavatel: '', cislo_objednavky: '' })
     loadReklamacie()
@@ -536,6 +564,32 @@ export default function ZakazkaDetail() {
               </div>
             </div>
           </div>
+
+          {/* Aktivita log */}
+          {aktLogy.length > 0 && (
+            <div className="bg-white rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.08)] p-5">
+              <h2 className="font-semibold text-[#1a2332] mb-3 flex items-center gap-2">
+                <ClipboardList size={15} className="text-[#0779e4]" /> História zmien
+              </h2>
+              <div className="space-y-0 divide-y divide-[#f4f6f9]">
+                {aktLogy.map(l => (
+                  <div key={l.id} className="flex items-start gap-3 py-2.5">
+                    <div className="w-7 h-7 rounded-full bg-[#e3f0fd] flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-bold text-[#0779e4]">
+                        {(l.user_meno ?? 'N').charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-[#1a2332]">{l.popis}</p>
+                      <p className="text-xs text-[#8b9bb4]">
+                        {l.user_meno} · {new Date(l.created_at).toLocaleString('sk-SK', { day: 'numeric', month: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
 

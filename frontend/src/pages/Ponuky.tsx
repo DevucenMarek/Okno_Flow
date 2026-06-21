@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, ChevronRight, Loader2, X, FileText, CheckCircle2, Clock, XCircle, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { logActivity } from '@/lib/activity'
+import { useAuth } from '@/context/AuthContext'
 import clsx from 'clsx'
 
 export interface Ponuka {
@@ -80,6 +82,8 @@ export async function generateCisloPonuky(): Promise<string> {
 
 export default function Ponuky() {
   const navigate = useNavigate()
+  const { profile } = useAuth()
+  const userMeno = profile?.meno || profile?.email || 'Neznámy'
   const [ponuky, setPonuky] = useState<Ponuka[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Ponuka['stav'] | 'vsetky'>('vsetky')
@@ -137,9 +141,14 @@ export default function Ponuky() {
       zalona: form.zalona ? parseFloat(form.zalona.replace(',', '.')) : null,
       termin_platnosti: form.termin_platnosti || null,
       poznamka: form.poznamka || null,
+      created_by: userMeno,
+      updated_by: userMeno,
     }).select('id').single()
 
     if (e) { setError(e.message); setSaving(false); return }
+    if (nova?.id) {
+      await logActivity('ponuka', nova.id, 'vytvoril', `Ponuka ${cislo_ponuky} vytvorená`, userMeno)
+    }
     setSaving(false); setShowModal(false); setForm(emptyForm)
     if (nova?.id) navigate(`/ponuky/${nova.id}`)
     else load()

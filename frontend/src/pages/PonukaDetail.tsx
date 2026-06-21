@@ -2,6 +2,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Edit2, Loader2, Save, X, ArrowRight, CheckCircle2, Phone, Mail, MapPin, User, Package, Euro, Calendar, FileText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/context/AuthContext'
+import { logActivity } from '@/lib/activity'
 import { type Ponuka, stavPonukyLabels } from './Ponuky'
 import clsx from 'clsx'
 
@@ -47,6 +49,8 @@ type EditForm = {
 export default function PonukaDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { profile } = useAuth()
+  const userMeno = profile?.meno || profile?.email || 'Neznámy'
   const [ponuka, setPonuka] = useState<Ponuka | null>(null)
   const [loading, setLoading] = useState(true)
   const [showEdit, setShowEdit] = useState(false)
@@ -60,9 +64,18 @@ export default function PonukaDetail() {
   const [converting, setConverting] = useState(false)
   const [convertError, setConvertError] = useState<string | null>(null)
 
+  // aktivita log
+  interface AktivitaLog { id: string; akcia: string; popis: string; user_meno: string; created_at: string }
+  const [aktLogy, setAktLogy] = useState<AktivitaLog[]>([])
+
   async function load() {
     const { data } = await supabase.from('ponuky').select('*').eq('id', id).single()
     setPonuka(data as Ponuka); setLoading(false)
+    const { data: logy } = await supabase.from('aktivita_log')
+      .select('id, akcia, popis, user_meno, created_at')
+      .eq('entita_typ', 'ponuka').eq('entita_id', id)
+      .order('created_at', { ascending: false }).limit(30)
+    setAktLogy((logy ?? []) as AktivitaLog[])
   }
   useEffect(() => { load() }, [id])
 
@@ -95,8 +108,10 @@ export default function PonukaDetail() {
       objem_spolu: num(editForm.objem_spolu), zalona: num(editForm.zalona),
       termin_platnosti: n(editForm.termin_platnosti), poznamka: n(editForm.poznamka),
       stav: editForm.stav, updated_at: new Date().toISOString(),
+      updated_by: userMeno,
     }).eq('id', ponuka.id)
     if (error) { setSaveError(error.message); setSaving(false); return }
+    await logActivity('ponuka', ponuka.id, 'upravil', 'Ponuka upravená', userMeno)
     setSaving(false); setShowEdit(false); load()
   }
   const ef = (key: keyof EditForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -137,7 +152,11 @@ export default function PonukaDetail() {
     // Označ ponuku ako prevzatú
     await supabase.from('ponuky').update({
       stav: 'prevzata', zakazka_id: zakazka!.id, updated_at: new Date().toISOString(),
+      updated_by: userMeno,
     }).eq('id', ponuka.id)
+
+    await logActivity('ponuka', ponuka.id, 'prevod', `Prevedená na zákazku ${cislozod.trim()}`, userMeno)
+    await logActivity('zakazka', zakazka!.id, 'vytvoril', `Zákazka ${cislozod.trim()} vytvorená z ponuky ${ponuka.cislo_ponuky}`, userMeno)
 
     setConverting(false)
     navigate(`/zakazky/${zakazka!.id}`)
@@ -243,6 +262,32 @@ export default function PonukaDetail() {
             Táto ponuka bola prevedená na zákazku.
             {ponuka.zakazka_id && <button onClick={() => navigate(`/zakazky/${ponuka.zakazka_id}`)} className="ml-2 underline font-medium">Otvoriť zákazku →</button>}
           </p>
+        </div>
+      )}
+
+      {/* Aktivita log */}
+      {aktLogy.length > 0 && (
+        <div className="bg-white rounded-[10px] shadow-[0_1px_3px_rgba(0,0,0,0.08)] p-5">
+          <h2 className="font-semibold text-[#1a2332] mb-3 flex items-center gap-2">
+            <FileText size={15} className="text-[#0779e4]" /> História zmien
+          </h2>
+          <div className="divide-y divide-[#f4f6f9]">
+            {aktLogy.map(l => (
+              <div key={l.id} className="flex items-start gap-3 py-2.5">
+                <div className="w-7 h-7 rounded-full bg-[#e3f0fd] flex items-center justify-center flex-shrink-0">
+                  <span className="text-[10px] font-bold text-[#0779e4]">
+                    {(l.user_meno ?? 'N').charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-[#1a2332]">{l.popis}</p>
+                  <p className="text-xs text-[#8b9bb4]">
+                    {l.user_meno} · {new Date(l.created_at).toLocaleString('sk-SK', { day: 'numeric', month: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

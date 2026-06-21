@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Search, Plus, ChevronRight, CheckCircle2, Circle, Clock, Loader2, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { StavZakazky, stavLabels, Zakazka, PIPELINE } from '@/types/zakazka'
+import { logActivity } from '@/lib/activity'
+import { useAuth } from '@/context/AuthContext'
 import clsx from 'clsx'
 
 const filtre: { key: StavZakazky | 'vsetky'; label: string }[] = [
@@ -66,6 +68,8 @@ const emptyForm: NovaZakazkaForm = {
 
 export default function Zakazky() {
   const navigate = useNavigate()
+  const { profile } = useAuth()
+  const userMeno = profile?.meno || profile?.email || 'Neznámy'
   const [filter, setFilter] = useState<StavZakazky | 'vsetky'>('vsetky')
   const [search, setSearch] = useState('')
   const [zakazky, setZakazky] = useState<Zakazka[]>([])
@@ -143,13 +147,18 @@ export default function Zakazky() {
       termin_zod: form.termin_zod || null,
       poznamka: form.poznamka || null,
       dat_dopyt: today,
+      created_by: userMeno,
+      updated_by: userMeno,
     }
 
-    const { error: e } = await supabase.from('zakazky').insert(payload)
+    const { data: novaZakazka, error: e } = await supabase.from('zakazky').insert(payload).select('id').single()
     if (e) {
       setError(e.message.includes('unique') ? 'Zákazka s týmto číslom ZoD už existuje' : e.message)
       setSaving(false)
       return
+    }
+    if (novaZakazka?.id) {
+      await logActivity('zakazka', novaZakazka.id, 'vytvoril', `Zákazka ${form.cislo_zod.trim()} vytvorená`, userMeno)
     }
     setSaving(false)
     setShowModal(false)
