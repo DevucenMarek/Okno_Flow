@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
 import { logActivity } from '@/lib/activity'
 import { type Ponuka, stavPonukyLabels } from './Ponuky'
+import PonukaGeneratorPanel from '@/components/PonukaGeneratorPanel'
 import clsx from 'clsx'
 
 function formatEur(n?: number | null) {
@@ -264,6 +265,9 @@ export default function PonukaDetail() {
           </p>
         </div>
       )}
+
+      {/* Generátor Word */}
+      <PonukaGeneratorPanel ponuka={ponuka} />
 
       {/* Aktivita log */}
       {aktLogy.length > 0 && (
